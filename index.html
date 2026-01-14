@@ -151,13 +151,6 @@
         .front .page-number { right: 1.5rem; }
         .back .page-number { left: 1.5rem; }
 
-        .controls {
-            margin-top: 3rem;
-            display: flex;
-            gap: 1.5rem;
-            z-index: 100;
-        }
-
         .btn {
             background: white;
             padding: 0.8rem 1.8rem;
@@ -344,9 +337,25 @@
             color: #4b5563;
             font-style: italic;
         }
+
+        #sync-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            font-size: 0.6rem;
+            color: #fb7185;
+            background: white;
+            padding: 4px 10px;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: none;
+            z-index: 1000;
+        }
     </style>
 </head>
 <body>
+
+    <div id="sync-status">✨ Synced with Cloud</div>
 
     <div id="magic-modal" class="magic-modal">
         <div class="modal-content">
@@ -514,9 +523,10 @@
                 <div class="page-content bg-rose-50/30">
                     <h2 class="text-2xl font-serif text-rose-900">The End</h2>
                     <div class="divider"></div>
-                    <p class="text-slate-700 italic mb-6">Of this book, but not our story.</p>
+                    <p class="text-slate-700 italic mb-4">Of this book, but not our story.</p>
                     <button onclick="generateAILetter()" id="ai-letter-btn" class="btn text-xs py-2 mb-4 bg-white/50 border-rose-200">✨ Write a Love Letter</button>
-                    <button onclick="clearSavedData()" class="text-[10px] text-rose-300 hover:text-rose-600 underline">Delete all photos</button>
+                    <button onclick="copyShareLink()" class="btn btn-primary text-[10px] py-2 mb-4">🔗 Copy Share Link</button>
+                    <button onclick="clearSavedData()" class="text-[10px] text-rose-300 hover:text-rose-600 underline block mx-auto">Delete all photos</button>
                     <span class="page-number">18</span>
                 </div>
             </div>
@@ -540,9 +550,9 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Updated with your specific project credentials
+        // Your specific Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyB6G4Mf3L628VF2FG5bdY4FNnKu35SvDAU",
             authDomain: "gunnu-38f0d.firebaseapp.com",
@@ -553,7 +563,7 @@
             measurementId: "G-6SMPBHG47R"
         };
 
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'gunnu-38f0d-storybook';
+        const appId = 'gunnu-38f0d-storybook';
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
@@ -561,22 +571,12 @@
 
         let user = null;
 
-        const prevBtn = document.querySelector("#prev-btn");
-        const nextBtn = document.querySelector("#next-btn");
-        const restartBtn = document.querySelector("#restart-btn");
-        const book = document.querySelector("#book");
-        const papers = Array.from(document.querySelectorAll(".page"));
-        let currentLocation = 1;
-        let numOfPapers = papers.length;
-        let maxLocation = numOfPapers + 1;
-
-        // Pattern-compliant Auth Flow to fix admin-restricted-operation errors
         const initAuth = async () => {
             try {
+                // First try the environment token, then fallback to anonymous
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
-                    // This will work once Anonymous Auth is enabled in your Firebase Console
                     await signInAnonymously(auth);
                 }
             } catch (e) {
@@ -587,42 +587,74 @@
         onAuthStateChanged(auth, async (u) => {
             user = u;
             if (user) { 
-                loadSavedPhotos();
+                setupLivePhotoSync();
             }
         });
 
         initAuth();
 
+        // SHARED PATH: This ensures everyone seeing the link sees the SAME photos
+        // Path: artifacts/{appId}/public/data/shared_photos/{photoId}
         async function savePhotoToCloud(targetId, base64Data) {
             if (!user) return;
             try {
-                // Using the strictly required path structure: /artifacts/{appId}/users/{userId}/{collectionName}
-                const photoDoc = doc(db, 'artifacts', appId, 'users', user.uid, 'photos', targetId);
-                await setDoc(photoDoc, { imageData: base64Data, timestamp: Date.now() });
-            } catch (e) { console.error("Save error:", e); }
-        }
-
-        async function loadSavedPhotos() {
-            if (!user) return;
-            const targetIds = ['img-p1', 'img-p2', 'img-p5'];
-            for (const id of targetIds) {
-                try {
-                    const photoDoc = doc(db, 'artifacts', appId, 'users', user.uid, 'photos', id);
-                    const snap = await getDoc(photoDoc);
-                    if (snap.exists()) { updatePhotoUI(id, snap.data().imageData); }
-                } catch (e) { console.error("Load error:", e); }
+                const photoDoc = doc(db, 'artifacts', appId, 'public', 'data', 'shared_photos', targetId);
+                await setDoc(photoDoc, { 
+                    imageData: base64Data, 
+                    updatedAt: Date.now() 
+                });
+                showStatus("Photo saved to cloud!");
+            } catch (e) { 
+                console.error("Save error:", e);
+                alert("Error saving photo. Make sure Firestore rules are open.");
             }
         }
 
+        // Live Sync: Automatically updates the page if someone uploads a new photo
+        function setupLivePhotoSync() {
+            const targetIds = ['img-p1', 'img-p2', 'img-p5'];
+            targetIds.forEach(id => {
+                const photoDoc = doc(db, 'artifacts', appId, 'public', 'data', 'shared_photos', id);
+                onSnapshot(photoDoc, (docSnap) => {
+                    if (docSnap.exists()) {
+                        updatePhotoUI(id, docSnap.data().imageData);
+                        showStatus("Syncing...");
+                        setTimeout(() => hideStatus(), 2000);
+                    }
+                }, (err) => console.error("Sync error:", err));
+            });
+        }
+
+        function showStatus(text) {
+            const status = document.getElementById('sync-status');
+            status.innerText = "✨ " + text;
+            status.style.display = "block";
+        }
+
+        function hideStatus() {
+            document.getElementById('sync-status').style.display = "none";
+        }
+
+        window.copyShareLink = () => {
+            const url = window.location.href;
+            const tempInput = document.createElement("input");
+            document.body.appendChild(tempInput);
+            tempInput.value = url;
+            tempInput.select();
+            document.execCommand("copy");
+            document.body.removeChild(tempInput);
+            alert("GitHub Link copied! Share this with Gunnu.");
+        };
+
         window.clearSavedData = async () => {
             if (!user) return;
-            const confirmDel = confirm("Delete all memories?");
+            const confirmDel = confirm("This will delete the shared photos for everyone. Continue?");
             if (!confirmDel) return;
             
             const targetIds = ['img-p1', 'img-p2', 'img-p5'];
             for (const id of targetIds) {
                 try {
-                    const photoDoc = doc(db, 'artifacts', appId, 'users', user.uid, 'photos', id);
+                    const photoDoc = doc(db, 'artifacts', appId, 'public', 'data', 'shared_photos', id);
                     await deleteDoc(photoDoc);
                 } catch (e) {}
             }
@@ -641,10 +673,11 @@
             const input = document.querySelector(`input[data-target="${targetId}"]`);
             if (input) {
                 const label = document.querySelector(`label[for="${input.id}"]`);
-                if (label) label.innerText = "Memory Saved!";
+                if (label) label.innerText = "Photo Updated!";
             }
         }
 
+        // AI Features
         const apiKey = ""; 
         window.callGemini = async (prompt, systemInstruction = "") => {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
@@ -661,17 +694,17 @@
                     await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000)); 
                 }
             }
-            return "Stars disconnected. Please try again later.";
+            return "Connection lost.";
         };
 
         window.generateAIPoem = async () => {
             const btn = document.getElementById('ai-poem-btn');
             const display = document.getElementById('poem-display');
-            btn.disabled = true; btn.innerHTML = '<span class="loading-dots">Thinking</span>';
+            btn.disabled = true; btn.innerHTML = '<span class="loading-dots">Searching stars</span>';
             try {
-                const poem = await callGemini("Short 4-line romantic poem for Gunnu. Warmth and safe haven.", "Poet persona.");
+                const poem = await callGemini("Short sweet poem for Gunnu. Mention light and home.", "Romantic poet.");
                 display.innerText = poem;
-            } catch (err) { display.innerText = "Error fetching magic."; }
+            } catch (err) { display.innerText = "Error fetching poem."; }
             finally { btn.disabled = false; btn.innerText = "✨ Dedicate a Poem"; }
         };
 
@@ -680,16 +713,17 @@
             const modal = document.getElementById('magic-modal');
             const body = document.getElementById('modal-body');
             btn.disabled = true; modal.style.display = "flex";
-            body.innerHTML = '<div class="loading-dots">Pouring ink</div>';
+            body.innerHTML = '<div class="loading-dots">Writing from the heart</div>';
             try {
-                const letter = await callGemini("Long emotional letter for Gunnu. Known since Sept 2007. Heartfelt.", "Sincere romantic persona.");
+                const letter = await callGemini("A long emotional letter for Gunnu. We have shared memories since 2007. Heartfelt and deep.", "Sincere writer.");
                 body.innerText = letter;
-            } catch (err) { body.innerText = "Try again soon."; }
+            } catch (err) { body.innerText = "Error writing letter."; }
             finally { btn.disabled = false; }
         };
 
         window.closeModal = () => { document.getElementById('magic-modal').style.display = "none"; };
 
+        // File handling
         document.querySelectorAll('.photo-input').forEach(input => {
             input.addEventListener('change', function() {
                 const file = this.files[0];
@@ -705,6 +739,16 @@
                 }
             });
         });
+
+        // Book Logic
+        const prevBtn = document.querySelector("#prev-btn");
+        const nextBtn = document.querySelector("#next-btn");
+        const restartBtn = document.querySelector("#restart-btn");
+        const book = document.querySelector("#book");
+        const papers = Array.from(document.querySelectorAll(".page"));
+        let currentLocation = 1;
+        let numOfPapers = papers.length;
+        let maxLocation = numOfPapers + 1;
 
         function openBook() { book.classList.add("open"); }
         function closeBook() { book.classList.remove("open"); }
@@ -750,12 +794,16 @@
             else goNextPage();
         });
 
+        // Petals effect
         const createPetals = () => {
-            for(let i = 0; i < 25; i++) {
+            for(let i = 0; i < 20; i++) {
                 const petal = document.createElement('div');
                 petal.className = 'petal';
                 petal.style.left = Math.random() * 100 + 'vw';
-                petal.style.animationDuration = Math.random() * 3 + 5 + 's';
+                petal.style.width = Math.random() * 15 + 10 + 'px';
+                petal.style.height = petal.style.width;
+                petal.style.animationDuration = Math.random() * 3 + 4 + 's';
+                petal.style.animationDelay = Math.random() * 5 + 's';
                 document.body.appendChild(petal);
             }
         };
