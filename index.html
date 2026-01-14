@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A Story for Gunnu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --book-width: 420px;
+            --book-height: 580px;
+            --page-color: #fffaf5;
+            --cover-color: #fce7f3;
+            --accent-color: #d4af37;
+            --speed: 0.8s;
+        }
+
+        @media (max-width: 900px) {
+            :root {
+                --book-width: 320px;
+                --book-height: 460px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            :root {
+                --book-width: 280px;
+                --book-height: 420px;
+            }
+        }
+
+        body {
+            background: radial-gradient(circle, #fff5f5 0%, #ffe4e6 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            perspective: 2000px;
+            overflow: hidden;
+            font-family: 'Georgia', serif;
+            margin: 0;
+            padding: 20px;
+            touch-action: pan-y;
+        }
+
+        .petal {
+            position: absolute;
+            background-color: #ffb7c5;
+            border-radius: 150% 0 150% 0;
+            opacity: 0.3;
+            pointer-events: none;
+            z-index: 0;
+            animation: fall linear infinite;
+        }
+
+        @keyframes fall {
+            0% { transform: translate(0, -10vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 0.6; }
+            90% { opacity: 0.6; }
+            100% { transform: translate(100px, 110vh) rotate(360deg); opacity: 0; }
+        }
+
+        .book {
+            position: relative;
+            width: var(--book-width);
+            height: var(--book-height);
+            transition: transform var(--speed);
+            transform-style: preserve-3d;
+            cursor: pointer;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+
+        .book.open {
+            transform: translateX(50%);
+        }
+
+        .page {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            transform-origin: left;
+            transform-style: preserve-3d;
+            transition: transform var(--speed) cubic-bezier(0.645, 0.045, 0.355, 1);
+            user-select: none;
+        }
+
+        .front, .back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            backface-visibility: hidden;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .front {
+            background-color: var(--page-color);
+            z-index: 2;
+            border-radius: 0 8px 8px 0;
+            box-shadow: inset -5px 0 10px rgba(0,0,0,0.05);
+        }
+
+        .back {
+            background-color: var(--page-color);
+            transform: rotateY(180deg);
+            z-index: 1;
+            border-radius: 8px 0 0 8px;
+            box-shadow: inset 5px 0 10px rgba(0,0,0,0.05);
+        }
+
+        .cover-front .front {
+            background: linear-gradient(135deg, #fb7185 0%, #e11d48 100%);
+            color: white;
+            border-left: 12px solid rgba(0,0,0,0.2);
+        }
+
+        .cover-back .back {
+            background: linear-gradient(135deg, #e11d48 0%, #fb7185 100%);
+            color: white;
+        }
+
+        .flipped {
+            transform: rotateY(-180deg);
+        }
+
+        .page-shadow {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to right, rgba(0,0,0,0.08) 0%, transparent 15%, transparent 85%, rgba(0,0,0,0.05) 100%);
+            pointer-events: none;
+        }
+
+        .page-number {
+            position: absolute;
+            bottom: 1rem;
+            font-size: 0.7rem;
+            color: #94a3b8;
+            font-weight: bold;
+        }
+        .front .page-number { right: 1.5rem; }
+        .back .page-number { left: 1.5rem; }
+
+        .controls {
+            margin-top: 3rem;
+            display: flex;
+            gap: 1.5rem;
+            z-index: 100;
+        }
+
+        .btn {
+            background: white;
+            padding: 0.8rem 1.8rem;
+            border-radius: 50px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 2px solid transparent;
+            color: #e11d48;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            background: #fff1f2;
+            border-color: #fecaca;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: #e11d48;
+            color: white;
+        }
+
+        .page-content {
+            height: 100%;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            position: relative;
+        }
+
+        .romantic-border {
+            border: 1px solid rgba(225, 29, 72, 0.2);
+            margin: 10px;
+            height: calc(100% - 20px);
+            width: calc(100% - 20px);
+            position: relative;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) scale(1); }
+            50% { transform: translateY(-15px) scale(1.1); }
+        }
+        .floating-heart {
+            animation: float 4s ease-in-out infinite;
+        }
+
+        .divider {
+            width: 50px;
+            height: 2px;
+            background: #e11d48;
+            margin: 1rem 0;
+            opacity: 0.3;
+        }
+
+        .handwritten {
+            font-family: 'Brush Script MT', cursive;
+            font-size: 1.5rem;
+            color: #be123c;
+        }
+        
+        .memory-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+        .memory-box {
+            background: white;
+            padding: 8px;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            font-size: 0.7rem;
+            color: #64748b;
+        }
+
+        .photo-frame {
+            width: 95%;
+            height: auto;
+            max-height: 280px;
+            background: #f1f5f9;
+            border: 6px solid white;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            object-fit: contain;
+            border-radius: 4px;
+            display: none;
+            margin-bottom: 10px;
+        }
+
+        .photo-placeholder {
+            width: 90%;
+            height: 250px;
+            border: 2px dashed #fecaca;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #fff5f5;
+            color: #fb7185;
+            font-style: italic;
+            font-size: 0.9rem;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+
+        .upload-trigger {
+            cursor: pointer;
+            font-size: 0.75rem;
+            background: #be123c;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            margin-top: 5px;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(190, 18, 60, 0.2);
+        }
+
+        .upload-trigger:hover {
+            transform: scale(1.05);
+            background: #9f1239;
+        }
+
+        .upload-trigger.on-cover {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255,255,255,0.4);
+            color: white;
+            box-shadow: none;
+        }
+
+        .magic-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: var(--page-color);
+            padding: 2.5rem;
+            border-radius: 1.5rem;
+            max-width: 450px;
+            width: 90%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            position: relative;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .loading-dots:after {
+            content: '.';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+            80%, 100% { content: ''; }
+        }
+
+        .ai-text {
+            line-height: 1.6;
+            color: #4b5563;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="magic-modal" class="magic-modal">
+        <div class="modal-content">
+            <button onclick="closeModal()" class="absolute top-4 right-4 text-rose-300 hover:text-rose-600">✕</button>
+            <h3 id="modal-title" class="text-xl font-serif text-rose-900 mb-4">Magic Letter</h3>
+            <div id="modal-body" class="ai-text whitespace-pre-wrap"></div>
+            <button onclick="closeModal()" class="btn btn-primary w-full mt-6">Close</button>
+        </div>
+    </div>
+
+    <div id="book" class="book">
+        <!-- Paper 1 (Cover) -->
+        <div id="p1" class="page cover-front" style="z-index: 10;">
+            <div class="front">
+                <div class="romantic-border flex flex-col items-center justify-center p-8">
+                    <div class="floating-heart text-6xl mb-8">💖</div>
+                    <h1 class="text-2xl font-serif tracking-[0.2em] text-white mb-2 uppercase">FOR YOU</h1>
+                    <div class="w-16 h-1 bg-white mb-8 rounded-full"></div>
+                    <h2 class="text-6xl font-bold mb-10 text-white italic drop-shadow-lg">Gunnu</h2>
+                    <p class="text-[10px] uppercase tracking-[0.5em] text-white opacity-80">A Journey of Memories</p>
+                    <label class="upload-trigger on-cover" for="input-p1">Click to Add Cover Photo</label>
+                    <input type="file" id="input-p1" accept="image/*" class="hidden photo-input" data-target="img-p1">
+                    <p class="mt-12 text-sm italic text-white animate-pulse">Click to Open</p>
+                </div>
+            </div>
+            <div class="back">
+                <div class="page-shadow"></div>
+                <div class="page-content">
+                    <h2 class="text-3xl font-serif text-rose-800 mb-2">A Preface</h2>
+                    <div class="divider"></div>
+                    <div class="mb-2 flex flex-col items-center w-full">
+                        <img id="img-p1" class="photo-frame" src="" alt="Memory">
+                        <div class="photo-placeholder">
+                            <span class="text-3xl mb-2">🖼️</span>
+                            <span>A picture of us belongs here...</span>
+                        </div>
+                    </div>
+                    <p class="text-slate-700 leading-relaxed italic text-lg px-4">
+                        "In the gallery of my heart, you are the masterpiece."
+                    </p>
+                    <span class="page-number">1</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Paper 2 -->
+        <div id="p2" class="page" style="z-index: 9;">
+            <div class="front">
+                <div class="page-shadow"></div>
+                <div class="page-content">
+                    <h2 class="text-2xl font-serif text-rose-900 uppercase tracking-tighter mb-2">The Little Things</h2>
+                    <div class="mb-4 flex flex-col items-center w-full">
+                        <img id="img-p2" class="photo-frame" src="" alt="Memory">
+                        <div class="photo-placeholder">
+                            <span class="text-3xl mb-2">📸</span>
+                            <span>Upload a special memory</span>
+                            <label class="upload-trigger mt-4" for="input-p2">Select Image</label>
+                        </div>
+                        <input type="file" id="input-p2" accept="image/*" class="hidden photo-input" data-target="img-p2">
+                    </div>
+                    
+                    <div class="memory-grid">
+                        <div class="memory-box">Your Laughter</div>
+                        <div class="memory-box">Our Late Chats</div>
+                        <div class="memory-box">Your Kind Soul</div>
+                        <div class="memory-box">Your Big Dreams</div>
+                    </div>
+                    <span class="page-number">2</span>
+                </div>
+            </div>
+            <div class="back">
+                <div class="page-shadow"></div>
+                <div class="page-content">
+                    <h2 class="text-2xl font-serif text-rose-900">Always Together</h2>
+                    <div class="divider"></div>
+                    <p class="text-slate-600 leading-relaxed text-lg italic px-4">
+                        No matter the distance or the time, you are the constant I always look for.
+                    </p>
+                    <p class="mt-4 handwritten text-rose-500">My safe haven.</p>
+                    <span class="page-number">3</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Paper 3 -->
+        <div id="p3" class="page" style="z-index: 8;">
+            <div class="front">
+                <div class="page-shadow"></div>
+                <div class="page-content">
+                    <h2 class="text-2xl font-serif text-rose-900">A Simple Truth</h2>
+                    <div class="divider"></div>
+                    <p class="text-slate-600 italic px-6">"If I had a flower for every time I thought of you... I could walk through my garden forever."</p>
+                    <div class="mt-6 text-2xl text-rose-300">🌸 🌼 🌺</div>
+                    <span class="page-number">4</span>
+                </div>
+            </div>
+            <div class="back">
+                <div class="page-shadow"></div>
+                <div class="page-content">
+                    <h2 class="text-2xl font-serif text-rose-900 mb-2">Strength</h2>
+                    <div class="mb-2 flex flex-col items-center w-full">
+                        <img id="img-p5" class="photo-frame" src="" alt="Memory">
+                        <div class="photo-placeholder">
+                            <span class="text-3xl mb-2">💪</span>
+                            <span>A photo of your strength</span>
+                            <label class="upload-trigger mt-4" for="input-p5">Upload Photo</label>
+                        </div>
+                        <input type="file" id="input-p5" accept="image/*" class="hidden photo-input" data-target="img-p5">
+                    </div>
+                    <p class="text-slate-600 px-4 text-sm">Watching you grow and navigate the world is the most inspiring thing I have ever witnessed.</p>
+                    <span class="page-number">5</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Paper 4: Magic & Comfort -->
+        <div id="p4" class="page" style="z-index: 7;">
+            <div class="front">
+                <div class="page-shadow"></div>
+                <div class="page-content">
+                    <h2 class="text-2xl font-serif text-rose-900">Magic Spark ✨</h2>
+                    <div class="divider"></div>
+                    <p class="text-slate-500 text-sm mb-4">Let the stars write a poem for you.</p>
+                    <button onclick="generateAIPoem()" id="ai-poem-btn" class="btn btn-primary text-xs py-2">✨ Dedicate a Poem</button>
+                    <div id="poem-display" class="mt-4 text-xs italic text-rose-800 font-serif"></div>
+                    <span class="page-number">6</span>
+                </div>
+            </div>
+            <div class="back">
+                <div class="page-shadow"></div>
+                <div class="page-content">
+                    <h2 class="text-2xl font-serif text-rose-900">Comfort</h2>
+                    <div class="divider"></div>
+                    <p class="text-slate-600 px-4 italic">"Your voice is my favorite sound, and your name is my favorite word."</p>
+                    <span class="page-number">7</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Paper 9: Special Date -->
+        <div id="p9" class="page" style="z-index: 2;">
+            <div class="front">
+                <div class="page-content">
+                    <h2 class="text-xl font-serif text-rose-900">A Special Date</h2>
+                    <div class="divider"></div>
+                    <h3 class="text-3xl font-bold text-rose-600">9 Sept 2007</h3>
+                    <p class="mt-4 text-xs text-rose-400">Where it all began...</p>
+                    <span class="page-number">16</span>
+                </div>
+            </div>
+            <div class="back">
+                <div class="page-content">
+                    <h2 class="text-xl font-serif text-rose-900">My Promise</h2>
+                    <div class="divider"></div>
+                    <p class="text-slate-600 italic px-4">"I will always be your biggest supporter, your loudest cheerleader, and your truest friend."</p>
+                    <span class="page-number">17</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Paper 10 (Back Cover) -->
+        <div id="p10" class="page cover-back" style="z-index: 1;">
+            <div class="front">
+                <div class="page-shadow"></div>
+                <div class="page-content bg-rose-50/30">
+                    <h2 class="text-2xl font-serif text-rose-900">The End</h2>
+                    <div class="divider"></div>
+                    <p class="text-slate-700 italic mb-6">Of this book, but not our story.</p>
+                    <button onclick="generateAILetter()" id="ai-letter-btn" class="btn text-xs py-2 mb-4 bg-white/50 border-rose-200">✨ Write a Love Letter</button>
+                    <button onclick="clearSavedData()" class="text-[10px] text-rose-300 hover:text-rose-600 underline">Delete all photos</button>
+                    <span class="page-number">18</span>
+                </div>
+            </div>
+            <div class="back">
+                <div class="romantic-border flex flex-col items-center justify-center p-8 bg-rose-50">
+                    <h3 class="font-serif text-rose-800 text-3xl font-bold mb-2">Forever</h3>
+                    <div class="divider"></div>
+                    <p class="text-sm text-rose-900 opacity-70 italic text-center">Thank you for being you, Gunnu.</p>
+                    <button id="restart-btn" class="btn btn-primary mt-12 text-sm">Read Again</button>
+                    <p class="mt-8 text-[10px] text-rose-300 tracking-tighter">Handcrafted with ❤️</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="prev-btn" class="btn">Back</button>
+        <button id="next-btn" class="btn btn-primary">Next</button>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Configuration
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'gunnu-storybook';
+
+        let user = null;
+
+        const prevBtn = document.querySelector("#prev-btn");
+        const nextBtn = document.querySelector("#next-btn");
+        const restartBtn = document.querySelector("#restart-btn");
+        const book = document.querySelector("#book");
+        const papers = Array.from(document.querySelectorAll(".page"));
+        let currentLocation = 1;
+        let numOfPapers = papers.length;
+        let maxLocation = numOfPapers + 1;
+
+        // AUTHENTICATION (RULE 3)
+        const initAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        };
+
+        onAuthStateChanged(auth, async (u) => {
+            user = u;
+            if (user) { 
+                loadSavedPhotos(); // Load only after auth
+            }
+        });
+
+        initAuth();
+
+        // PERSISTENCE LOGIC (RULE 1)
+        async function savePhotoToCloud(targetId, base64Data) {
+            if (!user) return;
+            try {
+                // Using strict path as per RULE 1
+                const photoDoc = doc(db, 'artifacts', appId, 'users', user.uid, 'photos', targetId);
+                await setDoc(photoDoc, { imageData: base64Data, timestamp: Date.now() });
+            } catch (e) { console.error("Save error:", e); }
+        }
+
+        async function loadSavedPhotos() {
+            if (!user) return;
+            const targetIds = ['img-p1', 'img-p2', 'img-p5'];
+            for (const id of targetIds) {
+                try {
+                    const photoDoc = doc(db, 'artifacts', appId, 'users', user.uid, 'photos', id);
+                    const snap = await getDoc(photoDoc);
+                    if (snap.exists()) { updatePhotoUI(id, snap.data().imageData); }
+                } catch (e) { console.error("Load error:", e); }
+            }
+        }
+
+        window.clearSavedData = async () => {
+            if (!user) return;
+            if (!confirm("Delete all memories?")) return;
+            const targetIds = ['img-p1', 'img-p2', 'img-p5'];
+            for (const id of targetIds) {
+                try {
+                    const photoDoc = doc(db, 'artifacts', appId, 'users', user.uid, 'photos', id);
+                    await deleteDoc(photoDoc);
+                } catch (e) {}
+            }
+            location.reload();
+        };
+
+        function updatePhotoUI(targetId, base64Data) {
+            const img = document.getElementById(targetId);
+            if (!img) return;
+            img.src = base64Data;
+            img.style.display = "block";
+            const placeholder = img.nextElementSibling;
+            if (placeholder && placeholder.classList.contains('photo-placeholder')) {
+                placeholder.style.display = "none";
+            }
+            const input = document.querySelector(`input[data-target="${targetId}"]`);
+            if (input) {
+                const label = document.querySelector(`label[for="${input.id}"]`);
+                if (label) label.innerText = "Memory Saved!";
+            }
+        }
+
+        // GEMINI API CALLS
+        const apiKey = ""; 
+        window.callGemini = async (prompt, systemInstruction = "") => {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+                systemInstruction: { parts: [{ text: systemInstruction }] }
+            };
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
+                    const data = await response.json();
+                    return data.candidates?.[0]?.content?.parts?.[0]?.text;
+                } catch (e) { await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000)); }
+            }
+            return "Stars disconnected.";
+        };
+
+        window.generateAIPoem = async () => {
+            const btn = document.getElementById('ai-poem-btn');
+            const display = document.getElementById('poem-display');
+            btn.disabled = true; btn.innerHTML = '<span class="loading-dots">Thinking</span>';
+            try {
+                const poem = await callGemini("Short 4-line romantic poem for Gunnu. Warmth and safe haven.", "Poet persona.");
+                display.innerText = poem;
+            } catch (err) { display.innerText = "Error fetching magic."; }
+            finally { btn.disabled = false; btn.innerText = "✨ Dedicate a Poem"; }
+        };
+
+        window.generateAILetter = async () => {
+            const btn = document.getElementById('ai-letter-btn');
+            const modal = document.getElementById('magic-modal');
+            const body = document.getElementById('modal-body');
+            btn.disabled = true; modal.style.display = "flex";
+            body.innerHTML = '<div class="loading-dots">Pouring ink</div>';
+            try {
+                const letter = await callGemini("Long emotional letter for Gunnu. Known since Sept 2007. Heartfelt.", "Sincere romantic persona.");
+                body.innerText = letter;
+            } catch (err) { body.innerText = "Try again soon."; }
+            finally { btn.disabled = false; }
+        };
+
+        window.closeModal = () => { document.getElementById('magic-modal').style.display = "none"; };
+
+        // FILE INPUT HANDLER
+        document.querySelectorAll('.photo-input').forEach(input => {
+            input.addEventListener('change', function() {
+                const file = this.files[0];
+                const targetId = this.getAttribute('data-target');
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = async function(e) {
+                        const base64 = e.target.result;
+                        updatePhotoUI(targetId, base64);
+                        await savePhotoToCloud(targetId, base64); // Save to cloud
+                    }
+                    reader.readAsDataURL(file);
+                }
+            });
+        });
+
+        // BOOK NAVIGATION
+        function openBook() { book.classList.add("open"); }
+        function closeBook() { book.classList.remove("open"); }
+
+        function goNextPage() {
+            if(currentLocation < maxLocation) {
+                const paperIndex = currentLocation - 1;
+                const paper = papers[paperIndex];
+                if (currentLocation === 1) openBook();
+                paper.classList.add("flipped");
+                paper.style.zIndex = currentLocation;
+                if (currentLocation === numOfPapers) closeBook();
+                currentLocation++;
+            }
+        }
+
+        function goPrevPage() {
+            if(currentLocation > 1) {
+                currentLocation--;
+                const paperIndex = currentLocation - 1;
+                const paper = papers[paperIndex];
+                if (currentLocation === 1) closeBook();
+                if (currentLocation === numOfPapers) openBook();
+                paper.classList.remove("flipped");
+                paper.style.zIndex = numOfPapers - paperIndex + 1;
+            }
+        }
+
+        function restartBook() {
+            const resetInterval = setInterval(() => {
+                if (currentLocation > 1) goPrevPage();
+                else clearInterval(resetInterval);
+            }, 80);
+        }
+
+        prevBtn.addEventListener("click", e => { e.stopPropagation(); goPrevPage(); });
+        nextBtn.addEventListener("click", e => { e.stopPropagation(); goNextPage(); });
+        restartBtn.addEventListener("click", e => { e.stopPropagation(); restartBook(); });
+        
+        book.addEventListener("click", (e) => {
+            if (['BUTTON', 'INPUT', 'LABEL'].includes(e.target.tagName)) return;
+            if (currentLocation === maxLocation) restartBook();
+            else goNextPage();
+        });
+
+        const createPetals = () => {
+            for(let i = 0; i < 25; i++) {
+                const petal = document.createElement('div');
+                petal.className = 'petal';
+                petal.style.left = Math.random() * 100 + 'vw';
+                petal.style.animationDuration = Math.random() * 3 + 5 + 's';
+                document.body.appendChild(petal);
+            }
+        };
+        window.addEventListener('load', createPetals);
+    </script>
+</body>
+</html>
