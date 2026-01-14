@@ -537,18 +537,27 @@
         <button id="next-btn" class="btn btn-primary">Next</button>
     </div>
 
-    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Firebase Configuration
-        const firebaseConfig = JSON.parse(__firebase_config);
+        // Updated with your specific project credentials
+        const firebaseConfig = {
+            apiKey: "AIzaSyB6G4Mf3L628VF2FG5bdY4FNnKu35SvDAU",
+            authDomain: "gunnu-38f0d.firebaseapp.com",
+            projectId: "gunnu-38f0d",
+            storageBucket: "gunnu-38f0d.firebasestorage.app",
+            messagingSenderId: "137360078542",
+            appId: "1:137360078542:web:95821dc46d5beb0d3c429f",
+            measurementId: "G-6SMPBHG47R"
+        };
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'gunnu-38f0d-storybook';
+
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'gunnu-storybook';
 
         let user = null;
 
@@ -561,29 +570,33 @@
         let numOfPapers = papers.length;
         let maxLocation = numOfPapers + 1;
 
-        // AUTHENTICATION (RULE 3)
+        // Pattern-compliant Auth Flow to fix admin-restricted-operation errors
         const initAuth = async () => {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    // This will work once Anonymous Auth is enabled in your Firebase Console
+                    await signInAnonymously(auth);
+                }
+            } catch (e) {
+                console.error("Auth error:", e);
             }
         };
 
         onAuthStateChanged(auth, async (u) => {
             user = u;
             if (user) { 
-                loadSavedPhotos(); // Load only after auth
+                loadSavedPhotos();
             }
         });
 
         initAuth();
 
-        // PERSISTENCE LOGIC (RULE 1)
         async function savePhotoToCloud(targetId, base64Data) {
             if (!user) return;
             try {
-                // Using strict path as per RULE 1
+                // Using the strictly required path structure: /artifacts/{appId}/users/{userId}/{collectionName}
                 const photoDoc = doc(db, 'artifacts', appId, 'users', user.uid, 'photos', targetId);
                 await setDoc(photoDoc, { imageData: base64Data, timestamp: Date.now() });
             } catch (e) { console.error("Save error:", e); }
@@ -603,7 +616,9 @@
 
         window.clearSavedData = async () => {
             if (!user) return;
-            if (!confirm("Delete all memories?")) return;
+            const confirmDel = confirm("Delete all memories?");
+            if (!confirmDel) return;
+            
             const targetIds = ['img-p1', 'img-p2', 'img-p5'];
             for (const id of targetIds) {
                 try {
@@ -630,7 +645,6 @@
             }
         }
 
-        // GEMINI API CALLS
         const apiKey = ""; 
         window.callGemini = async (prompt, systemInstruction = "") => {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
@@ -643,9 +657,11 @@
                     const response = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
                     const data = await response.json();
                     return data.candidates?.[0]?.content?.parts?.[0]?.text;
-                } catch (e) { await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000)); }
+                } catch (e) { 
+                    await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000)); 
+                }
             }
-            return "Stars disconnected.";
+            return "Stars disconnected. Please try again later.";
         };
 
         window.generateAIPoem = async () => {
@@ -674,7 +690,6 @@
 
         window.closeModal = () => { document.getElementById('magic-modal').style.display = "none"; };
 
-        // FILE INPUT HANDLER
         document.querySelectorAll('.photo-input').forEach(input => {
             input.addEventListener('change', function() {
                 const file = this.files[0];
@@ -684,14 +699,13 @@
                     reader.onload = async function(e) {
                         const base64 = e.target.result;
                         updatePhotoUI(targetId, base64);
-                        await savePhotoToCloud(targetId, base64); // Save to cloud
+                        await savePhotoToCloud(targetId, base64);
                     }
                     reader.readAsDataURL(file);
                 }
             });
         });
 
-        // BOOK NAVIGATION
         function openBook() { book.classList.add("open"); }
         function closeBook() { book.classList.remove("open"); }
 
